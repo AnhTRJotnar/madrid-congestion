@@ -18,6 +18,7 @@ classifiers = [
 dependencies = [
     "loguru",
     "python-dotenv",
+    "requests>=2.34.2",
     "tqdm",
     "typer",
 ]
@@ -27,7 +28,7 @@ requires-python = "~=3.12.0"
 [tool.ruff]
 line-length = 99
 src = ["madrid_congestion"]
-include = ["pyproject.toml", "madrid_congestion/**/*.py"]
+include = ["pyproject.toml", "madrid_congestion/**/*.py", "tests/**/*.py"]
 
 [tool.ruff.lint]
 extend-select = ["I"]  # Add import sorting
