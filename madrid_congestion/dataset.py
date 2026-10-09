@@ -1,28 +1,61 @@
-from pathlib import Path
+from typing import Annotated
 
 from loguru import logger
+import requests
 from tqdm import tqdm
 import typer
 
-from madrid_congestion.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
+from madrid_congestion.config import MADRID_BASE_URL, MONTHLY_FILES, RAW_DATA_DIR
 
 app = typer.Typer()
+CHUNK = 1 << 20  # 1 MiB
+
+
+@app.callback()
+def cli() -> None:
+    """Madrid congestion data pipeline."""
+
+
+def url_for(month: str) -> str:
+    rid = MONTHLY_FILES[month]
+    return f"{MADRID_BASE_URL}/{rid}/download/{rid}.zip"
 
 
 @app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path = RAW_DATA_DIR / "dataset.csv",
-    output_path: Path = PROCESSED_DATA_DIR / "dataset.csv",
-    # ----------------------------------------------
-):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Processing dataset...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Processing dataset complete.")
-    # -----------------------------------------
+def download(
+    months: Annotated[list[str] | None, typer.Argument(help="Months as YYYY-MM.")] = None,
+) -> None:
+    """Download monthly loop-detector zips into data/raw/."""
+    if months is None:
+        months = list(MONTHLY_FILES.keys())
+
+    if unknown := [m for m in months if m not in MONTHLY_FILES]:
+        raise typer.BadParameter(f"Unknown month(s): {', '.join(unknown)}")
+
+    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for month in months:
+        out = RAW_DATA_DIR / f"{month}.zip"
+        if out.exists():
+            logger.info(f"{month}: already downloaded, skipping.")
+            continue
+        part = out.with_suffix(".zip.part")
+
+        with requests.get(url_for(month), stream=True, timeout=60) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("Content-Length", 0)) or None
+            with (
+                open(part, "wb") as f,
+                tqdm(total=total, unit="B", unit_scale=True, desc=month) as bar,
+            ):
+                for chunk in r.iter_content(chunk_size=CHUNK):
+                    f.write(chunk)
+                    bar.update(len(chunk))
+        if total is not None and bar.n != total:
+            raise ValueError(
+                f"Incomplete download for {month}: expected {total} bytes, got {bar.n} bytes."
+            )
+        part.replace(out)
+        logger.success(f"{month}: download complete, saved to {out}.")
 
 
 if __name__ == "__main__":
