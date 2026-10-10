@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "loguru",
+    "polars>=2.0.0",
     "python-dotenv",
     "requests>=2.34.2",
     "tqdm",
