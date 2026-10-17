@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,7 +24,6 @@ FIGURES_DIR = REPORTS_DIR / "figures"
 
 # Source: datos.madrid.es dataset 208627 (Histórico de datos del tráfico), resource ids from
 # https://datos.madrid.es/api/3/action/package_show?id=208627-0-transporte-ptomedida-historico
-# Download URL = {MADRID_BASE_URL}/{resource_id}/download/{resource_id}.zip
 MADRID_BASE_URL = (
     "https://datos.madrid.es/dataset/208627-0-transporte-ptomedida-historico/resource"
 )
@@ -68,6 +68,33 @@ MONTHLY_FILES: dict[str, str] = {
     "2024-12": "208627-1-transporte-ptomedida-historico-zip",
 }
 
+# Data rules (EDA and cleaning)
+EDA_YEARS = (2022, 2023)  # 2024 is used to test
+URB = "URB"  # tipo_elem value for urban points (URB only)
+SLOT = timedelta(minutes=15)  # one slot; fecha marks its END, so slot_start = fecha - SLOT
+SAMPLES_FULL = 15  # one-minute samples in a complete URB slot
+
+# fecha values removed by date and time (Slot start confirmed):
+# spring = the 03:00 row (1 sample); autumn = the four rows that merge two real slots.
+DST_ROWS: tuple[datetime, ...] = (
+    # 2022 spring
+    datetime(2022, 3, 27, 3, 0),
+    # 2022 autumn
+    datetime(2022, 10, 30, 2, 15),
+    datetime(2022, 10, 30, 2, 30),
+    datetime(2022, 10, 30, 2, 45),
+    datetime(2022, 10, 30, 3, 0),
+    # 2023 spring
+    datetime(2023, 3, 26, 3, 0),
+    # 2023 autumn
+    datetime(2023, 10, 29, 2, 15),
+    datetime(2023, 10, 29, 2, 30),
+    datetime(2023, 10, 29, 2, 45),
+    datetime(2023, 10, 29, 3, 0),
+)
+
+K_GRID = (5, 8, 10)  
+PANEL_SHARES = (0.80, 0.90, 0.95)  # candidate panel thresholds (Panel rule, still a proposal)
 
 # If tqdm is installed, configure loguru with tqdm.write
 
