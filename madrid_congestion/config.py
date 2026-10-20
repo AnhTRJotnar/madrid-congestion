@@ -93,8 +93,9 @@ DST_ROWS: tuple[datetime, ...] = (
     datetime(2023, 10, 29, 3, 0),
 )
 
-K_GRID = (5, 8, 10)  
+K_GRID = (5, 8, 10)  # old k grid, March trial only (Step 3d); replaced by How k is chosen
 PANEL_SHARES = (0.80, 0.90, 0.95)  # candidate panel thresholds (Panel rule, still a proposal)
+MIN_SAMPLES = 13 # k: keep URB rows with at least this many samples
 
 # If tqdm is installed, configure loguru with tqdm.write
 

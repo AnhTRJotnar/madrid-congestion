@@ -6,6 +6,28 @@
 
 Advanced project - RUC
 
+Early warning of district congestion onset in Madrid, from the City Council's open loop-detector data
+(2022-2024).
+
+## Status (2026-10-20)
+
+- Done: download and conversion of the 36 monthly files (`madrid_congestion/dataset.py`, with tests).
+- In progress: exploratory analysis in `notebooks/1.0-anh-initial-exploration.ipynb` (2022-2023 only;
+  2024 is the locked test year).
+
+## Reproduce (so far)
+
+```powershell
+git clone https://github.com/AnhTRJotnar/madrid-congestion.git
+cd madrid-congestion
+uv sync
+uv run python -m madrid_congestion.dataset download     # 36 monthly zips, about 2.7 GB, into data/raw/
+uv run python -m madrid_congestion.dataset convert      # one Parquet file per month, into data/interim/
+uv run pytest
+```
+
+The data are not in git (`/data/` is ignored); these commands rebuild them from datos.madrid.es.
+
 ## Project Organization
 
 ```
@@ -58,4 +80,3 @@ Advanced project - RUC
 ```
 
 --------
-
