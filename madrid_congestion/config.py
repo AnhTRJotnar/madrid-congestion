@@ -68,10 +68,18 @@ MONTHLY_FILES: dict[str, str] = {
     "2024-12": "208627-1-transporte-ptomedida-historico-zip",
 }
 
+# Source: datos.madrid.es dataset 202468
+LOCATIONS_BASE_URL = "https://datos.madrid.es/dataset/202468-0-intensidad-trafico/resource"  # base of the download links
+
+LOCATION_FILES: dict[str, str] = {  # snapshot month -> resource id (Location rules confirmed: union of both)
+    "2021-12": "202468-3-intensidad-trafico-csv",  # December 2021 snapshot
+    "2022-12": "202468-4-intensidad-trafico-csv",
+}
+
 # Data rules (EDA and cleaning)
 EDA_YEARS = (2022, 2023)  # 2024 is used to test
 URB = "URB"  # tipo_elem value for urban points (URB only)
-SLOT = timedelta(minutes=15)  # one slot; fecha marks its END, so slot_start = fecha - SLOT
+SLOT = timedelta(minutes=15)  # one slot, fecha marks its END, so slot_start = fecha - SLOT
 SAMPLES_FULL = 15  # one-minute samples in a complete URB slot
 
 # fecha values removed by date and time (Slot start confirmed):
@@ -93,9 +101,8 @@ DST_ROWS: tuple[datetime, ...] = (
     datetime(2023, 10, 29, 3, 0),
 )
 
-K_GRID = (5, 8, 10)  # old k grid, March trial only (Step 3d); replaced by How k is chosen
-PANEL_SHARES = (0.80, 0.90, 0.95)  # candidate panel thresholds (Panel rule, still a proposal)
-MIN_SAMPLES = 13 # k: keep URB rows with at least this many samples
+MIN_SAMPLES = 15  # k: keep URB rows with at least this many samples
+MAX_FLOW = 5000  # value rule: a reading with flow above this (vehicles per hour) is invalid
 
 # If tqdm is installed, configure loguru with tqdm.write
 
