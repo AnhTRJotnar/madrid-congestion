@@ -9,11 +9,14 @@ Advanced project - RUC
 Early warning of district congestion onset in Madrid, from the City Council's open loop-detector data
 (2022-2024).
 
-## Status (2026-10-20)
+## Status (2026-10-25)
 
 - Done: download and conversion of the 36 monthly files (`madrid_congestion/dataset.py`, with tests).
-- In progress: exploratory analysis in `notebooks/1.0-anh-initial-exploration.ipynb` (2022-2023 only;
-  2024 is the locked test year).
+- Done: exploratory analysis and data rules in `notebooks/1.0-anh-initial-exploration.ipynb` (2022-2023
+  only; 2024 is the locked test year). The rules are constants in `madrid_congestion/config.py`.
+- Done: fixed sensor panel and district series for 2022-2023 (`madrid_congestion/districts.py`, with
+  tests).
+- Next: labels (critical occupancy per district, congestion episodes, onsets).
 
 ## Reproduce (so far)
 
@@ -21,12 +24,21 @@ Early warning of district congestion onset in Madrid, from the City Council's op
 git clone https://github.com/AnhTRJotnar/madrid-congestion.git
 cd madrid-congestion
 uv sync
-uv run python -m madrid_congestion.dataset download     # 36 monthly zips, about 2.7 GB, into data/raw/
-uv run python -m madrid_congestion.dataset convert      # one Parquet file per month, into data/interim/
+uv run python -m madrid_congestion.dataset download            # 36 monthly zips, about 2.7 GB, into data/raw/
+uv run python -m madrid_congestion.dataset convert             # one Parquet file per month, into data/interim/
+uv run python -m madrid_congestion.dataset download-locations  # two sensor-location files, into data/external/
+uv run python -m madrid_congestion.districts build-panel       # fixed sensor panel chosen on 2022, into data/processed/
+uv run python -m madrid_congestion.districts build-district-series  # district series 2022-2023, into data/processed/
 uv run pytest
 ```
 
 The data are not in git (`/data/` is ignored); these commands rebuild them from datos.madrid.es.
+`build-panel` should report c = 0.66 and 2,865 sensors in 20 districts.
+
+**Data rules** (decided in the notebook, applied by the package): urban sensors only; clock-change rows
+removed; a valid reading has 15 one-minute samples, flow and occupancy present, and flow at most 5,000
+vehicles per hour; district values are means over a fixed sensor panel; a district slot is valid if at
+least 30 panel sensors and at least half of the panel report; invalid slots are never filled in.
 
 ## Project Organization
 
@@ -68,6 +80,8 @@ The data are not in git (`/data/` is ignored); these commands rebuild them from 
     ├── config.py               <- Store useful variables and configuration
     │
     ├── dataset.py              <- Scripts to download or generate data
+    │
+    ├── districts.py            <- Fixed sensor panel and district series
     │
     ├── features.py             <- Code to create features for modeling
     │

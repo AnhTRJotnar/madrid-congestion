@@ -19,6 +19,7 @@ from madrid_congestion.config import (
     PANEL_YEAR,
     PROCESSED_DATA_DIR,
     SAMPLES_FULL,
+    SLOT,
     URB,
     VALID_SLOT_PANEL_SHARE,
 )
@@ -47,6 +48,18 @@ def urb_rows(rows: pl.LazyFrame) -> pl.LazyFrame:
 def month_urb_rows(month: str, columns: list[str]) -> pl.DataFrame:
     # One month's urban rows from data/interim/, with only the given columns.
     return urb_rows(pl.scan_parquet(INTERIM_DATA_DIR / f"{month}.parquet")).select(columns).collect()
+
+
+def by_slot_start(rows: pl.DataFrame, year: int) -> pl.DataFrame:
+    # Key rows by slot start (fecha marks the slot's end) and keep the slots that start in `year`.
+    # A January file's first row is the year before's last slot; a year's own last slot sits in the
+    # next January file, which is never read, so each year misses that one slot (2023 never touches 2024).
+    return rows.with_columns(slot_start=pl.col("fecha") - SLOT).filter(pl.col("slot_start").dt.year() == year)
+
+
+def slot_rows(month: str) -> pl.DataFrame:
+    # One month's urban readings keyed by slot start, inside the month's own year.
+    return by_slot_start(month_urb_rows(month, READING_COLUMNS), int(month[:4]))
 
 
 def read_locations(month: str) -> pl.DataFrame:
@@ -95,24 +108,24 @@ def district_series(
     minimum: int = DISTRICT_MINIMUM,
     panel_share: float = VALID_SLOT_PANEL_SHARE,
 ) -> pl.DataFrame:
-    # Per district and slot: mean occupancy and flow over the panel sensors with a valid reading.
+    # Per district and slot start: mean occupancy and flow over the panel sensors with a valid reading.
     # Every slot in `slots` is kept for every district; a slot without readings has 0 sensors and is never filled in.
     panel_sizes = panel.group_by("distrito").agg(panel_sensors=pl.len())
     per_slot = (
         readings.join(panel.select("id", "distrito"), on="id", how="inner")  # panel sensors only, with their district
         .filter(VALID_READING)
-        .group_by("distrito", "fecha")
+        .group_by("distrito", "slot_start")
         .agg(occupancy=pl.col("ocupacion").mean(), flow=pl.col("intensidad").mean(), sensors=pl.len())
     )
     return (
         slots.join(panel_sizes, how="cross")  # every slot x every district
-        .join(per_slot, on=["distrito", "fecha"], how="left")
+        .join(per_slot, on=["distrito", "slot_start"], how="left")
         .with_columns(pl.col("sensors").fill_null(0))
         .with_columns(
             valid_slot=(pl.col("sensors") >= minimum) & (pl.col("sensors") >= panel_share * pl.col("panel_sensors"))
         )
-        .select("distrito", "fecha", "occupancy", "flow", "sensors", "panel_sensors", "valid_slot")
-        .sort("distrito", "fecha")
+        .select("distrito", "slot_start", "occupancy", "flow", "sensors", "panel_sensors", "valid_slot")
+        .sort("distrito", "slot_start")
     )
 
 
@@ -128,9 +141,9 @@ def build_panel() -> None:
     # Choose the fixed sensor panel on PANEL_YEAR and write it to data/processed/panel.parquet.
     counts, year_slots = [], 0
     for month in months_of(PANEL_YEAR):
-        rows = month_urb_rows(month, READING_COLUMNS)
+        rows = slot_rows(month)
         counts.append(rows.group_by("id").agg(valid_readings=VALID_READING.sum()))
-        year_slots += rows["fecha"].n_unique()  # slots with urban data, clock-change rows excluded
+        year_slots += rows["slot_start"].n_unique()  # slots with urban data, clock-change rows excluded
         logger.info(f"{month}: done")
 
     snapshots = sorted(LOCATION_FILES)  # e.g. ["2021-12", "2022-12"]
@@ -147,7 +160,10 @@ def build_panel() -> None:
     panel = select_panel(shares, c)
     PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
     write_parquet(panel, PANEL_PATH)
-    logger.success(f"panel: c = {c}, {panel.height:,} sensors in {panel['distrito'].n_unique()} districts -> {PANEL_PATH.name}")
+    logger.success(
+        f"panel: c = {c}, {panel.height:,} sensors in {panel['distrito'].n_unique()} districts, "
+        f"{year_slots:,} slots -> {PANEL_PATH.name}"
+    )
 
 
 @app.command()
@@ -165,10 +181,10 @@ def build_district_series(
     for year in years:
         months = []
         for month in months_of(year):
-            rows = month_urb_rows(month, READING_COLUMNS)
-            months.append(district_series(rows, panel, rows.select("fecha").unique()))
+            rows = slot_rows(month)
+            months.append(district_series(rows, panel, rows.select("slot_start").unique()))
             logger.info(f"{month}: done")
-        series = pl.concat(months)
+        series = pl.concat(months).sort("distrito", "slot_start")  # a month's first row may start in the month before
         path = PROCESSED_DATA_DIR / f"district-series-{year}.parquet"
         write_parquet(series, path)
         valid_share = series.select(pl.col("valid_slot").mean()).item()

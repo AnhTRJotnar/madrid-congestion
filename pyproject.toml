@@ -42,6 +42,7 @@ force-sort-within-sections = true
 [tool.ruff.lint.per-file-ignores]
 # fecha is naive Madrid clock time; DST_ROWS must match it, so no tzinfo
 "madrid_congestion/config.py" = ["DTZ001"]
+"tests/test_districts.py" = ["DTZ001"] # test rows mirror the naive fecha
 
 [dependency-groups]
 dev = [

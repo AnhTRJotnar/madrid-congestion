@@ -8,6 +8,7 @@ from madrid_congestion.config import DST_ROWS, MAX_FLOW
 from madrid_congestion.districts import (
     VALID_READING,
     build_district_series,
+    by_slot_start,
     combine_locations,
     district_series,
     panel_cutoff,
@@ -67,12 +68,12 @@ def test_district_series_means_counts_and_valid_slots():
     panel = pl.DataFrame({"id": pl.Series([1, 2, 3, 4], dtype=pl.Int32), "distrito": [1, 1, 1, 1]})
     readings = pl.DataFrame({
         "id": pl.Series([1, 2, 3, 1, 9], dtype=pl.Int32),  # sensor 9 is not in the panel
-        "fecha": [t1, t1, t1, t2, t1],
+        "slot_start": [t1, t1, t1, t2, t1],
         "intensidad": pl.Series([100, 200, 300, 100, 999], dtype=pl.Int32),
         "ocupacion": pl.Series([10, 20, 30, 10, 99], dtype=pl.Int16),
         "periodo_integracion": pl.Series([15, 15, 15, 15, 15], dtype=pl.Int8),
     })
-    slots = pl.DataFrame({"fecha": [t1, t2, t3]})
+    slots = pl.DataFrame({"slot_start": [t1, t2, t3]})
     series = district_series(readings, panel, slots, minimum=2, panel_share=0.5)
     assert series["sensors"].to_list() == [3, 1, 0]  # t3 has no reading but is kept
     assert series["occupancy"].to_list() == [20.0, 10.0, None]  # never filled in
@@ -82,3 +83,10 @@ def test_district_series_means_counts_and_valid_slots():
 def test_build_district_series_refuses_the_test_year():
     with pytest.raises(typer.BadParameter):
         build_district_series([2024])
+
+
+def test_by_slot_start_keys_on_slot_start_and_keeps_the_year():
+    rows = pl.DataFrame({"fecha": [datetime(2022, 1, 1, 0, 0), datetime(2022, 1, 1, 0, 15), datetime(2023, 1, 1, 0, 0)]})
+    # the first row ends the last slot of 2021; the last row ends the last slot of 2022
+    assert by_slot_start(rows, 2022)["slot_start"].to_list() == [datetime(2022, 1, 1, 0, 0), datetime(2022, 12, 31, 23, 45)]
+
