@@ -18,7 +18,6 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 EXTERNAL_DATA_DIR = DATA_DIR / "external"
 
 MODELS_DIR = PROJ_ROOT / "models"
-
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
@@ -101,8 +100,13 @@ DST_ROWS: tuple[datetime, ...] = (
     datetime(2023, 10, 29, 3, 0),
 )
 
-MIN_SAMPLES = 15  # k: keep URB rows with at least this many samples
+MIN_SAMPLES = 15  # k: a valid reading has MIN_SAMPLES to SAMPLES_FULL one-minute samples
 MAX_FLOW = 5000  # value rule: a reading with flow above this (vehicles per hour) is invalid
+DISTRICT_MINIMUM = 30  # panel sensors a district needs; evidence: subsampling test, notebook 1.0 Section 6
+PANEL_YEAR = 2022  # the fixed sensor panel is chosen on the training year only
+PANEL_CUTOFFS: tuple[float, ...] = tuple(round(0.50 + 0.01 * step, 2) for step in range(51))  # candidate c, 0.50 to 1.00
+VALID_SLOT_PANEL_SHARE = 0.5  # valid slot: at least DISTRICT_MINIMUM sensors AND at least this share of the panel report
+
 
 # If tqdm is installed, configure loguru with tqdm.write
 
