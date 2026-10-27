@@ -1,15 +1,11 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from dotenv import load_dotenv
 from loguru import logger
-
-# Load environment variables from .env file if it exists
-load_dotenv()
+from tqdm import tqdm
 
 # Paths
 PROJ_ROOT = Path(__file__).resolve().parents[1]
-logger.info(f"PROJ_ROOT path is: {PROJ_ROOT}")
 
 DATA_DIR = PROJ_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
@@ -17,9 +13,7 @@ INTERIM_DATA_DIR = DATA_DIR / "interim"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 EXTERNAL_DATA_DIR = DATA_DIR / "external"
 
-MODELS_DIR = PROJ_ROOT / "models"
-REPORTS_DIR = PROJ_ROOT / "reports"
-FIGURES_DIR = REPORTS_DIR / "figures"
+FIGURES_DIR = PROJ_ROOT / "reports" / "figures"
 
 # Source: datos.madrid.es dataset 208627 (Histórico de datos del tráfico), resource ids from
 # https://datos.madrid.es/api/3/action/package_show?id=208627-0-transporte-ptomedida-historico
@@ -123,13 +117,6 @@ HORIZONS = {30: 2, 60: 4}  # warning horizon in minutes -> slots in the target w
 WEEKEND_FROM = 6  # polars weekday: Monday = 1 ... Saturday = 6, Sunday = 7; Saturday and Sunday are the weekend
 # Calendar baseline: the 2022 positive share of usable calm origins per district x weekday/weekend x slot of day
 
-
-# If tqdm is installed, configure loguru with tqdm.write
-
-try:
-    from tqdm import tqdm
-
-    logger.remove(0)
-    logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True)
-except ModuleNotFoundError:
-    pass
+# Log through tqdm.write, so log lines do not break the download progress bars
+logger.remove(0)
+logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True)

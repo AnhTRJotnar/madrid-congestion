@@ -1,9 +1,5 @@
 # madrid-congestion
 
-<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
-    <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
-</a>
-
 Advanced project - RUC
 
 Early warning of an operational district congestion proxy in Madrid, from the City Council's open
@@ -13,18 +9,43 @@ district's 2022 95th percentile, at least 30 minutes). Three warnings are compar
 ahead: forecasting flow, forecasting occupancy, and classifying the onset directly, with the same
 inputs. Train 2022, tune 2023, test 2024 once; SARIMA is a separate classical benchmark.
 
-## Status (2026-10-26)
+## Repository structure
 
-- Done: download and conversion of the 36 monthly files (`madrid_congestion/dataset.py`, with tests).
-- Done: exploratory analysis and data rules in `notebooks/1.0-anh-initial-exploration.ipynb` (2022-2023
-  only; 2024 is the locked test year). The rules are constants in `madrid_congestion/config.py`.
-- Done: fixed sensor panel and district series for 2022-2023 (`madrid_congestion/districts.py`, with
-  tests).
-- Done: 2022 labels, calendar baseline and design checks in `notebooks/2.0-anh-labels.ipynb` (19
-  districts, 5,466 onsets; label rules in `config.py`). `notebooks/archive/` holds the superseded critical-point attempt.
-- Next: `labels.py` and `features.py` in the package, then models.
+```
+├── README.md
+├── pyproject.toml, uv.lock     <- Dependencies (uv, Python 3.12)
+├── madrid_congestion/          <- Package: data pipeline and shared settings
+│   ├── config.py               <- Paths, source file ids, and every data and label rule as a constant
+│   ├── dataset.py              <- Commands: download the monthly zips and location files, convert to Parquet
+│   ├── districts.py            <- Commands: fixed sensor panel and district series
+│   └── plots.py                <- Shared style for the report figures
+├── tests/                      <- pytest tests for dataset.py and districts.py
+├── notebooks/                  <- Analysis, run in numerical order (see Workflow)
+├── reports/figures/            <- Report figures, written by the notebooks
+└── data/                       <- Not in git; rebuilt by the commands below
+    ├── raw/                    <- 36 monthly zips, 2022-2024
+    ├── interim/                <- One Parquet file per month
+    ├── external/               <- Sensor location snapshots, December 2021 and December 2022
+    └── processed/              <- Sensor panel and district series
+```
 
-## Reproduce (so far)
+## Workflow
+
+The years have fixed roles: 2022 trains the models and fixes every rule and threshold, 2023 tunes the
+models and selects the warning threshold, and 2024 is the test year, run once after the design freeze.
+The package refuses to build a 2024 district series before then.
+
+| Stage | Location | Status |
+|---|---|---|
+| Download and conversion of the monthly files | `madrid_congestion/dataset.py` | Done |
+| Data-quality analysis and data rules, 2022-2023 | `notebooks/1.0-anh-data-quality.ipynb`, rules in `config.py` | Done |
+| Fixed sensor panel and district series | `madrid_congestion/districts.py` | Done for 2022-2023 |
+| Label construction, calendar baseline and design checks, 2022 | `notebooks/2.0-anh-label-construction.ipynb` | Done |
+| Superseded critical-point label (paper Section 3.4) | `notebooks/2.1-anh-superseded-label-check.ipynb` | Done, not part of the pipeline |
+| Features, model fitting (2022), tuning and warning-threshold selection (2023) | modelling notebook | Planned |
+| Final evaluation on the locked 2024 test year | separate test notebook | Planned, run once |
+
+## Setup and reproduction
 
 ```powershell
 git clone https://github.com/AnhTRJotnar/madrid-congestion.git
@@ -38,10 +59,11 @@ uv run python -m madrid_congestion.districts build-district-series  # district s
 uv run pytest
 ```
 
-The data are not in git (`/data/` is ignored); these commands rebuild them from datos.madrid.es.
-`build-panel` should report c = 0.66 and 2,865 sensors in 20 districts.
+`build-panel` should report c = 0.66 and 2,865 sensors in 20 districts. Then run the notebooks in
+order (1.0, 2.0, 2.1) with the project's kernel. Notebook 1.0 checks that the package's panel and
+district series match the rules it derives, so it needs the commands above to have run first.
 
-**Data rules** (decided in the notebook, applied by the package): urban sensors only; clock-change rows
+**Data rules** (decided in notebook 1.0, applied by the package): urban sensors only; clock-change rows
 removed; a valid reading has 15 one-minute samples, flow and occupancy present, and flow at most 5,000
 vehicles per hour; district values are means over a fixed sensor panel; a district slot is valid if at
 least 30 panel sensors and at least half of the panel report; invalid slots are never filled in.
@@ -50,58 +72,3 @@ least 30 panel sensors and at least half of the panel report; invalid slots are 
 high-occupancy slot is a valid slot at or above the district's 2022 95th-percentile occupancy; an onset
 starts a run of at least two such slots after a valid slot below the threshold; origins are calm when
 the previous hour holds no high-occupancy slot.
-
-## Project Organization
-
-```
-├── LICENSE            <- Open-source license if one is chosen
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
-│
-├── docs               <- A default mkdocs project; see www.mkdocs.org for details
-│
-├── models             <- Trained and serialized models, model predictions, or model summaries
-│
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
-│
-├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         madrid_congestion and configuration for tools like black
-│
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-│
-├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures        <- Generated graphics and figures to be used in reporting
-│
-├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-│                         generated with `pip freeze > requirements.txt`
-│
-├── setup.cfg          <- Configuration file for flake8
-│
-└── madrid_congestion   <- Source code for use in this project.
-    │
-    ├── __init__.py             <- Makes madrid_congestion a Python module
-    │
-    ├── config.py               <- Store useful variables and configuration
-    │
-    ├── dataset.py              <- Scripts to download or generate data
-    │
-    ├── districts.py            <- Fixed sensor panel and district series
-    │
-    ├── features.py             <- Code to create features for modeling
-    │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
-    │
-    └── plots.py                <- Code to create visualizations
-```
-
---------
