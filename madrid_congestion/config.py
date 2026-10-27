@@ -98,6 +98,13 @@ DST_ROWS: tuple[datetime, ...] = (
     datetime(2023, 10, 29, 2, 30),
     datetime(2023, 10, 29, 2, 45),
     datetime(2023, 10, 29, 3, 0),
+    # 2024 spring
+    datetime(2024, 3, 31, 3, 0),
+    # 2024 autumn
+    datetime(2024, 10, 27, 2, 15),
+    datetime(2024, 10, 27, 2, 30),
+    datetime(2024, 10, 27, 2, 45),
+    datetime(2024, 10, 27, 3, 0),
 )
 
 MIN_SAMPLES = 15  # k: a valid reading has MIN_SAMPLES to SAMPLES_FULL one-minute samples
@@ -106,6 +113,15 @@ DISTRICT_MINIMUM = 30  # panel sensors a district needs; evidence: subsampling t
 PANEL_YEAR = 2022  # the fixed sensor panel is chosen on the training year only
 PANEL_CUTOFFS: tuple[float, ...] = tuple(round(0.50 + 0.01 * step, 2) for step in range(51))  # candidate c, 0.50 to 1.00
 VALID_SLOT_PANEL_SHARE = 0.5  # valid slot: at least DISTRICT_MINIMUM sensors AND at least this share of the panel report
+
+# Label rules: the operational congestion proxy (persistent high district occupancy), fixed on PANEL_YEAR
+SUPPORT_SHARE = 0.5  # a district is studied only if at least this share of its 2022 slots is valid
+HIGH_OCC_QUANTILE = 0.95  # high-occupancy threshold and flow reference: the district's 2022 95th percentile
+MIN_EPISODE_SLOTS = 2  # a persistent high-occupancy episode lasts at least 2 slots (30 minutes)
+CALM_SLOTS = 4  # calm origin: none of t-3 ... t is a high-occupancy slot (one hour)
+HORIZONS = {30: 2, 60: 4}  # warning horizon in minutes -> slots in the target window t+1 ... t+H
+WEEKEND_FROM = 6  # polars weekday: Monday = 1 ... Saturday = 6, Sunday = 7; Saturday and Sunday are the weekend
+# Calendar baseline: the 2022 positive share of usable calm origins per district x weekday/weekend x slot of day
 
 
 # If tqdm is installed, configure loguru with tqdm.write

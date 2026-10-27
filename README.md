@@ -6,17 +6,23 @@
 
 Advanced project - RUC
 
-Early warning of district congestion onset in Madrid, from the City Council's open loop-detector data
-(2022-2024).
+Early warning of an operational district congestion proxy in Madrid, from the City Council's open
+loop-detector data (2022-2024). The URB data give flow and occupancy but no independent congestion
+measure, so the event predicted is the onset of **persistent unusually high district occupancy** (each
+district's 2022 95th percentile, at least 30 minutes). Three warnings are compared 30 and 60 minutes
+ahead: forecasting flow, forecasting occupancy, and classifying the onset directly, with the same
+inputs. Train 2022, tune 2023, test 2024 once; SARIMA is a separate classical benchmark.
 
-## Status (2026-10-25)
+## Status (2026-10-26)
 
 - Done: download and conversion of the 36 monthly files (`madrid_congestion/dataset.py`, with tests).
 - Done: exploratory analysis and data rules in `notebooks/1.0-anh-initial-exploration.ipynb` (2022-2023
   only; 2024 is the locked test year). The rules are constants in `madrid_congestion/config.py`.
 - Done: fixed sensor panel and district series for 2022-2023 (`madrid_congestion/districts.py`, with
   tests).
-- Next: labels (critical occupancy per district, congestion episodes, onsets).
+- Done: 2022 labels, calendar baseline and design checks in `notebooks/2.0-anh-labels.ipynb` (19
+  districts, 5,466 onsets; label rules in `config.py`). `notebooks/archive/` holds the superseded critical-point attempt.
+- Next: `labels.py` and `features.py` in the package, then models.
 
 ## Reproduce (so far)
 
@@ -39,6 +45,11 @@ The data are not in git (`/data/` is ignored); these commands rebuild them from 
 removed; a valid reading has 15 one-minute samples, flow and occupancy present, and flow at most 5,000
 vehicles per hour; district values are means over a fixed sensor panel; a district slot is valid if at
 least 30 panel sensors and at least half of the panel report; invalid slots are never filled in.
+
+**Label rules** (notebook 2.0): a district is studied if at least half of its 2022 slots are valid; a
+high-occupancy slot is a valid slot at or above the district's 2022 95th-percentile occupancy; an onset
+starts a run of at least two such slots after a valid slot below the threshold; origins are calm when
+the previous hour holds no high-occupancy slot.
 
 ## Project Organization
 
