@@ -1,0 +1,94 @@
+{
+ "30": {
+  "proximity": {
+   "warning_threshold": 0.9082431307243963,
+   "ap_2023": 0.2482856053895333
+  },
+  "calendar": {
+   "warning_threshold": 0.19166666666666668,
+   "ap_2023": 0.3521381884763416
+  },
+  "linear_occupancy": {
+   "warning_threshold": 0.9593071301670233,
+   "ap_2023": 0.41489334294348673
+  },
+  "linear_flow": {
+   "warning_threshold": 1.0289724931395507,
+   "ap_2023": 0.3576054443951846
+  },
+  "linear_direct": {
+   "warning_threshold": 0.21817805356026604,
+   "ap_2023": 0.5172242587188893
+  },
+  "xgboost_occupancy": {
+   "warning_threshold": 1.003616452217102,
+   "ap_2023": 0.6960729288601759
+  },
+  "xgboost_flow": {
+   "warning_threshold": 1.0224907398223877,
+   "ap_2023": 0.5330753783221149
+  },
+  "xgboost_direct": {
+   "warning_threshold": 0.2831883728504181,
+   "ap_2023": 0.7201507262947527
+  },
+  "xgboost_direct_no_flow": {
+   "warning_threshold": 0.29958242177963257,
+   "ap_2023": 0.7159682789064523
+  },
+  "sarima_occupancy": {
+   "warning_threshold": 0.9579788541395398,
+   "ap_2023": 0.5801388400670449
+  },
+  "sarima_flow": {
+   "warning_threshold": 0.9950220393488445,
+   "ap_2023": 0.4207159051249125
+  }
+ },
+ "60": {
+  "proximity": {
+   "warning_threshold": 0.8680966772434751,
+   "ap_2023": 0.2791588252701284
+  },
+  "calendar": {
+   "warning_threshold": 0.20134228187919462,
+   "ap_2023": 0.44971454703637326
+  },
+  "linear_occupancy": {
+   "warning_threshold": 0.9668083269474712,
+   "ap_2023": 0.45494850350728044
+  },
+  "linear_flow": {
+   "warning_threshold": 1.0004085893827281,
+   "ap_2023": 0.3850695336984503
+  },
+  "linear_direct": {
+   "warning_threshold": 0.20890323446521875,
+   "ap_2023": 0.5503400549287873
+  },
+  "xgboost_occupancy": {
+   "warning_threshold": 1.0136538743972778,
+   "ap_2023": 0.7577563721361782
+  },
+  "xgboost_flow": {
+   "warning_threshold": 1.0117566585540771,
+   "ap_2023": 0.6331873506341369
+  },
+  "xgboost_direct": {
+   "warning_threshold": 0.34808608889579773,
+   "ap_2023": 0.7821822115316686
+  },
+  "xgboost_direct_no_flow": {
+   "warning_threshold": 0.331772118806839,
+   "ap_2023": 0.7760924364886019
+  },
+  "sarima_occupancy": {
+   "warning_threshold": 0.9443354275122577,
+   "ap_2023": 0.6361853837235623
+  },
+  "sarima_flow": {
+   "warning_threshold": 0.9793100481290816,
+   "ap_2023": 0.4905423859453101
+  }
+ }
+}

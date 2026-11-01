@@ -15,6 +15,7 @@ from madrid_congestion.districts import (
     select_panel,
     urb_rows,
 )
+from madrid_congestion.frozen import FrozenDesignError
 
 # district 1: three sensors; district 2: three sensors; district 3: one sensor (never eligible with minimum 2)
 SHARES = pl.DataFrame({
@@ -83,6 +84,15 @@ def test_district_series_means_counts_and_valid_slots():
 def test_build_district_series_refuses_the_test_year():
     with pytest.raises(typer.BadParameter):
         build_district_series([2024])
+    with pytest.raises(typer.BadParameter):  # the switch opens the test year alone
+        build_district_series([2023, 2024], test_run=True)
+
+
+def test_test_run_stops_without_a_complete_frozen_design(tmp_path, monkeypatch):
+    # an empty models folder: the check fails before any test-year file is read
+    monkeypatch.setattr("madrid_congestion.frozen.MODELS_DIR", tmp_path)
+    with pytest.raises(FrozenDesignError):
+        build_district_series([2024], test_run=True)
 
 
 def test_by_slot_start_keys_on_slot_start_and_keeps_the_year():

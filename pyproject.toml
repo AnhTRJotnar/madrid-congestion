@@ -18,10 +18,14 @@ classifiers = [
 dependencies = [
     "loguru",
     "matplotlib>=3.11.2",
+    "numpy>=2.5.3",
     "polars>=2.0.0",
     "requests>=2.34.2",
+    "scikit-learn>=1.9.1",
+    "statsmodels>=0.15.0",
     "tqdm",
     "typer",
+    "xgboost>=3.4.1",
 ]
 requires-python = "~=3.12.0"
 

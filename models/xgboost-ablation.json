@@ -1,0 +1,24 @@
+{
+ "30": {
+  "direct_no_flow": {
+   "trial": 17,
+   "max_depth": 5,
+   "learning_rate": 0.042008377700479965,
+   "n_estimators": 744,
+   "subsample": 0.8582883582299792,
+   "min_child_weight": 1,
+   "ap_2023": 0.7159682789064523
+  }
+ },
+ "60": {
+  "direct_no_flow": {
+   "trial": 13,
+   "max_depth": 5,
+   "learning_rate": 0.07977778002451666,
+   "n_estimators": 787,
+   "subsample": 0.6591688143139826,
+   "min_child_weight": 16,
+   "ap_2023": 0.7760924364886019
+  }
+ }
+}

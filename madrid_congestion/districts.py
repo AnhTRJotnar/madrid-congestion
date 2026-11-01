@@ -20,6 +20,7 @@ from madrid_congestion.config import (
     PROCESSED_DATA_DIR,
     SAMPLES_FULL,
     SLOT,
+    TEST_YEAR,
     URB,
     VALID_SLOT_PANEL_SHARE,
 )
@@ -169,11 +170,21 @@ def build_panel() -> None:
 @app.command()
 def build_district_series(
     years: Annotated[list[int] | None, typer.Argument(help="Years to build (default: 2022 2023).")] = None,
+    test_run: Annotated[
+        bool, typer.Option("--test-run", help="The single final test run: allows the test year alone.")
+    ] = False,
 ) -> None:
     # Build one district series per year from the fixed panel, into data/processed/district-series-YYYY.parquet.
+    # The test year is refused unless --test-run is given, and then only after the frozen design is checked.
     years = years or list(EDA_YEARS)
-    if locked := [year for year in years if year not in EDA_YEARS]:
-        raise typer.BadParameter(f"not allowed before the design freeze: {locked}")  # 2024 is the test year
+    locked = [year for year in years if year not in EDA_YEARS]
+    if locked and not (test_run and locked == years == [TEST_YEAR]):
+        raise typer.BadParameter(f"not allowed outside the single test run (--test-run {TEST_YEAR}): {locked}")
+    if test_run:
+        # imported here: the data commands need no model code otherwise
+        from madrid_congestion.frozen import check_frozen
+
+        check_frozen()  # every frozen 2022/2023 choice present and unchanged, before any test-year file is read
     if not PANEL_PATH.exists():
         raise FileNotFoundError(f"{PANEL_PATH} not found. Run `build-panel` first.")
     panel = pl.read_parquet(PANEL_PATH)

@@ -14,6 +14,8 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 EXTERNAL_DATA_DIR = DATA_DIR / "external"
 
 FIGURES_DIR = PROJ_ROOT / "reports" / "figures"
+# Frozen 2022/2023 choices (references, hyperparameters, thresholds) that the 2024 run loads
+MODELS_DIR = PROJ_ROOT / "models"
 
 # Source: datos.madrid.es dataset 208627 (Histórico de datos del tráfico), resource ids from
 # https://datos.madrid.es/api/3/action/package_show?id=208627-0-transporte-ptomedida-historico
@@ -71,6 +73,8 @@ LOCATION_FILES: dict[str, str] = {  # snapshot month -> resource id (Location ru
 
 # Data rules (EDA and cleaning)
 EDA_YEARS = (2022, 2023)  # 2024 is used to test
+VALIDATION_YEAR = 2023  # tunes XGBoost and calibrates every warning threshold
+TEST_YEAR = 2024  # read once, by the final test run, after the 2023 replay check
 URB = "URB"  # tipo_elem value for urban points (URB only)
 SLOT = timedelta(minutes=15)  # one slot, fecha marks its END, so slot_start = fecha - SLOT
 SAMPLES_FULL = 15  # one-minute samples in a complete URB slot
