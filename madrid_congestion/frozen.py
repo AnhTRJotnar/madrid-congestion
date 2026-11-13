@@ -23,8 +23,16 @@ from madrid_congestion.config import (
     VALIDATION_YEAR,
     WEEKEND_FROM,
 )
+from madrid_congestion.evaluation import best_csi_threshold
 from madrid_congestion.features import feature_names
-from madrid_congestion.labels import baseline_scores
+from madrid_congestion.labels import (
+    add_labels,
+    baseline_scores,
+    calendar_baseline,
+    references,
+    studied_districts,
+    year_grid,
+)
 from madrid_congestion.models import (
     LINEAR_MODELS,
     SEARCH_SPACE,
@@ -70,7 +78,7 @@ FILES = {
     "sarima": "sarima-2022.json",  # notebook 3.3
     "thresholds": "thresholds-2023.json",  # notebook 3.4
 }
-AP_TOLERANCE = 1e-9  # the 2023 replay must give the frozen AP to this absolute difference
+REPLAY_TOLERANCE = 1e-9  # largest absolute difference from a frozen 2023 AP or warning threshold
 
 
 class FrozenDesignError(Exception):
@@ -193,6 +201,22 @@ def check_frozen(districts: pl.Series | None = None) -> None:
         raise FrozenDesignError("; ".join(problems))
 
 
+def check_references(series: pl.DataFrame) -> None:
+    # The 2022 choices the test run loads, rebuilt from the 2022 district series by the package's own rules: studied
+    # districts, thresholds, flow references and calendar shares must equal the frozen files exactly.
+    districts = studied_districts(series)
+    grid = year_grid(series, districts, PANEL_YEAR)
+    refs = references(grid)
+    calendar = calendar_baseline(add_labels(grid, refs), districts)
+    problems = []
+    if not refs.equals(pl.read_parquet(MODELS_DIR / FILES["references"])):
+        problems.append(f"{FILES['references']} differs from the references rebuilt from 2022")
+    if not calendar.equals(pl.read_parquet(MODELS_DIR / FILES["calendar"])):
+        problems.append(f"{FILES['calendar']} differs from the calendar shares rebuilt from 2022")
+    if problems:
+        raise FrozenDesignError("; ".join(problems))
+
+
 def frozen_models(
     fit_rows: dict[int, pl.DataFrame], districts: pl.Series
 ) -> dict[tuple[int, str], Model]:
@@ -254,19 +278,59 @@ def score_year(
 
 
 def replay_validation(scores_by_horizon: dict[int, pl.DataFrame]) -> pl.DataFrame:
-    # The 2023 AP of every score, recomputed by the final-test path, against the AP frozen by notebook 3.4.
-    # Raises unless every score reproduces; only then may the 2024 stage go on.
+    # The 2023 AP and highest-CSI warning threshold of every score, recomputed by the final-test path, against
+    # those frozen by notebook 3.4. Raises unless every score reproduces both; only then may the 2024 stage go on.
     thresholds = load_frozen(FILES["thresholds"])
     rows = []
     for minutes, scores in scores_by_horizon.items():
         for name in SCORES:
-            ap = float(average_precision_score(scores["target"], scores[name]))
-            frozen = thresholds[str(minutes)][name]["ap_2023"]
-            rows.append({"minutes": minutes, "score": name, "ap_replay": ap, "ap_frozen": frozen})
+            frozen = thresholds[str(minutes)][name]
+            rows.append(
+                {
+                    "minutes": minutes,
+                    "score": name,
+                    "ap_replay": float(average_precision_score(scores["target"], scores[name])),
+                    "ap_frozen": frozen["ap_2023"],
+                    "threshold_replay": best_csi_threshold(scores["target"], scores[name]),
+                    "threshold_frozen": frozen["warning_threshold"],
+                }
+            )
     table = pl.DataFrame(rows).with_columns(
-        difference=(pl.col("ap_replay") - pl.col("ap_frozen")).abs()
+        difference=(pl.col("ap_replay") - pl.col("ap_frozen")).abs(),
+        threshold_difference=(pl.col("threshold_replay") - pl.col("threshold_frozen")).abs(),
     )
-    failed = table.filter(pl.col("difference") > AP_TOLERANCE)
+    failed = table.filter(
+        (pl.col("difference") > REPLAY_TOLERANCE)
+        | (pl.col("threshold_difference") > REPLAY_TOLERANCE)
+    )
     if failed.height:
-        raise FrozenDesignError(f"the 2023 replay does not reproduce the frozen AP:\n{failed}")
+        raise FrozenDesignError(
+            f"the 2023 replay does not reproduce the frozen AP or warning threshold:\n{failed}"
+        )
     return table
+
+
+def compare(scores_by_horizon: dict[int, pl.DataFrame], year: int) -> pl.DataFrame:
+    # The comparisons of paper Section 5.1 at each horizon: the AP difference on the 52 complete weeks of `year`
+    # with its paired week-block bootstrap interval (Section 5.3). The same function serves the 2023 debugging run
+    # and the 2024 test, so the test year meets no untried code.
+    rows = []
+    for minutes, scores in scores_by_horizon.items():
+        assert (scores["slot_start"].dt.year() == year).all(), "origins from another year"
+        assert scores["target"].dtype == pl.Boolean, "the target must be the binary onset label"
+        # a null or NaN score would be ranked last without any error, so every compared score must be finite
+        for name in sorted({name for pair in CONTRASTS.values() for name in pair}):
+            if not np.isfinite(scores[name].to_numpy()).all():
+                raise ValueError(f"{name} has a missing or non-finite score at {minutes} min")
+        block = bootstrap.week_block(scores["slot_start"], year)
+        for name, (first, second) in CONTRASTS.items():
+            rows.append(
+                {
+                    "minutes": minutes,
+                    "comparison": name,
+                    **bootstrap.bootstrap_difference(
+                        scores["target"], scores[first], scores[second], block
+                    ),
+                }
+            )
+    return pl.DataFrame(rows)

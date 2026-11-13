@@ -1,12 +1,27 @@
+from datetime import date
 import json
 import re
 
+import numpy as np
 import polars as pl
 import pytest
+from sklearn.metrics import average_precision_score
 
-from madrid_congestion import frozen
-from madrid_congestion.config import HORIZONS
-from madrid_congestion.frozen import FILES, SCORES, FrozenDesignError, check_frozen, write_design
+from madrid_congestion import bootstrap, frozen
+from madrid_congestion.config import HORIZONS, PANEL_YEAR
+from madrid_congestion.evaluation import best_csi_threshold
+from madrid_congestion.frozen import (
+    CONTRASTS,
+    FILES,
+    SCORES,
+    FrozenDesignError,
+    check_frozen,
+    check_references,
+    compare,
+    replay_validation,
+    write_design,
+)
+from madrid_congestion.labels import add_labels, calendar_baseline, references, year_grid
 from madrid_congestion.models import SEARCH_SPACE, xgboost_candidates
 
 DISTRICTS = pl.Series("distrito", [1, 2])
@@ -96,3 +111,120 @@ def test_the_manifest_holds_the_search_space_and_its_candidates(models_dir):
     design = json.loads((models_dir / FILES["design"]).read_text(encoding="utf-8"))
     assert design["seed"] == 1 and design["trials"] == 30 and len(design["candidates"]) == 30
     assert list(design["search_space"]) == list(SEARCH_SPACE)
+
+
+def scores_with_frozen_values(seed):
+    # Random scores per horizon, and the AP and highest-CSI threshold each one has, as notebook 3.4 would freeze them
+    rng = np.random.default_rng(seed)
+    scores, values = {}, {}
+    for minutes in HORIZONS:
+        target = rng.random(300) < 0.2
+        scores[minutes] = pl.DataFrame(
+            {"target": target, **{name: rng.random(300) + 0.3 * target for name in SCORES}}
+        )
+        values[str(minutes)] = {
+            name: {
+                "warning_threshold": best_csi_threshold(target, scores[minutes][name]),
+                "ap_2023": float(average_precision_score(target, scores[minutes][name])),
+            }
+            for name in SCORES
+        }
+    return scores, values
+
+
+def test_the_replay_passes_only_when_every_ap_and_threshold_reproduces(models_dir):
+    scores, values = scores_with_frozen_values(0)
+    write(models_dir, "thresholds", values)
+    assert replay_validation(scores).height == len(HORIZONS) * len(SCORES)
+    for field, change in (("ap_2023", 1e-6), ("warning_threshold", 1e-3)):
+        drifted = json.loads(
+            json.dumps(values)
+        )  # one frozen value off, everything else as computed
+        drifted["60"]["calendar"][field] += change
+        write(models_dir, "thresholds", drifted)
+        with pytest.raises(FrozenDesignError, match="does not reproduce"):
+            replay_validation(scores)
+
+
+def test_references_and_calendar_are_rebuilt_from_2022_and_compared(models_dir):
+    rng = np.random.default_rng(0)
+    slots = pl.datetime_range(
+        date(PANEL_YEAR, 1, 3), date(PANEL_YEAR, 1, 10), "15m", closed="left", eager=True
+    )
+    series = pl.concat(
+        pl.DataFrame(
+            {
+                "distrito": district,
+                "slot_start": slots,
+                "occupancy": rng.random(slots.len()) * 20,
+                "flow": rng.random(slots.len()) * 900,
+                "valid_slot": True,
+            }
+        )
+        for district in DISTRICTS
+    )
+    grid = year_grid(series, DISTRICTS, PANEL_YEAR)
+    refs = references(grid)
+    refs.write_parquet(models_dir / FILES["references"])
+    calendar_baseline(add_labels(grid, refs), DISTRICTS).write_parquet(
+        models_dir / FILES["calendar"]
+    )
+    check_references(series)
+    refs.with_columns(pl.col("threshold") + 0.1).write_parquet(models_dir / FILES["references"])
+    with pytest.raises(FrozenDesignError, match="references rebuilt from 2022"):
+        check_references(series)
+
+
+def test_compare_gives_each_comparison_at_each_horizon_on_the_52_weeks(monkeypatch):
+    monkeypatch.setattr(bootstrap, "REPETITIONS", 50)  # few repetitions keep the test fast
+    monkeypatch.setattr(bootstrap, "MOVE_LIMIT", float("inf"))  # and no rerun with 10,000
+    rng = np.random.default_rng(0)
+    slot_start = pl.datetime_range(
+        date(2023, 1, 1), date(2024, 1, 1), "1h", closed="left", eager=True
+    )
+    target = rng.random(slot_start.len()) < 0.1
+    names = {name for pair in CONTRASTS.values() for name in pair}
+    scores = pl.DataFrame(
+        {
+            "slot_start": slot_start,
+            "target": target,
+            **{name: rng.random(slot_start.len()) + 0.2 * target for name in names},
+        }
+    )
+    table = compare({30: scores, 60: scores}, 2023)
+    assert table.height == len(HORIZONS) * len(CONTRASTS)
+    inside = scores.filter(
+        pl.col("slot_start").dt.ordinal_day() <= 364
+    )  # 31 December 2023 is outside the weeks
+    for row in table.iter_rows(named=True):
+        first, second = CONTRASTS[row["comparison"]]
+        expected = average_precision_score(
+            inside["target"], inside[first]
+        ) - average_precision_score(inside["target"], inside[second])
+        assert np.isclose(row["difference"], expected)
+        assert row["low"] <= row["high"] and row["repetitions"] == 50
+    with pytest.raises(AssertionError, match="another year"):
+        compare({30: scores}, 2024)
+
+
+def test_compare_refuses_a_missing_score_instead_of_ranking_it_last():
+    # A null or NaN score would sort to the end of the ranking without any error; compare must stop instead.
+    slot_start = pl.datetime_range(
+        date(2023, 1, 1), date(2023, 1, 8), "1h", closed="left", eager=True
+    )
+    names = sorted({name for pair in CONTRASTS.values() for name in pair})
+    scores = pl.DataFrame(
+        {"slot_start": slot_start, "target": [k % 5 == 0 for k in range(slot_start.len())]}
+        | {name: np.linspace(0, 1, slot_start.len()) for name in names}
+    )
+    gap = pl.int_range(pl.len()) == 3  # one origin loses its score
+    with_nan = scores.with_columns(
+        pl.when(gap).then(float("nan")).otherwise(pl.col(names[0])).alias(names[0])
+    )
+    with pytest.raises(ValueError, match=f"{names[0]} has a missing or non-finite score"):
+        compare({30: with_nan}, 2023)
+    with_null = scores.with_columns(
+        pl.when(gap).then(None).otherwise(pl.col(names[-1])).alias(names[-1])
+    )
+    with pytest.raises(ValueError, match=f"{names[-1]} has a missing or non-finite score"):
+        compare({30: with_null}, 2023)

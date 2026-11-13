@@ -2,6 +2,7 @@ import numpy as np
 import polars as pl
 from sklearn.metrics import average_precision_score
 
+from madrid_congestion import bootstrap
 from madrid_congestion.bootstrap import RankedScore, paired_differences, week_block
 
 
@@ -40,3 +41,24 @@ def test_paired_differences_repeat_with_the_same_seed_and_are_zero_for_equal_sco
         first, paired_differences(target, score + target, score, block, 20, seed=1)
     )
     assert np.allclose(paired_differences(target, score, score, block, 20, seed=1), 0)
+
+
+def test_bootstrap_difference_moves_to_more_repetitions_only_when_the_second_seed_moves(
+    monkeypatch,
+):
+    monkeypatch.setattr(bootstrap, "REPETITIONS", 20)  # small numbers keep the test fast
+    monkeypatch.setattr(bootstrap, "LARGE_REPETITIONS", 40)
+    rng = np.random.default_rng(2)
+    target = rng.random(700) < 0.2
+    first, second = rng.random(700) + 0.3 * target, rng.random(700) + 0.1 * target
+    block = np.repeat(np.arange(-1, 52), 14)[:700]
+    inside = block >= 0
+    expected = average_precision_score(target[inside], first[inside]) - average_precision_score(
+        target[inside], second[inside]
+    )
+    monkeypatch.setattr(bootstrap, "MOVE_LIMIT", float("inf"))  # never unstable: 20 repetitions
+    stable = bootstrap.bootstrap_difference(target, first, second, block)
+    assert np.isclose(stable["difference"], expected) and stable["repetitions"] == 20
+    monkeypatch.setattr(bootstrap, "MOVE_LIMIT", 0.0)  # always unstable: rerun with 40
+    unstable = bootstrap.bootstrap_difference(target, first, second, block)
+    assert unstable["repetitions"] == 40 and unstable["low"] <= unstable["high"]
